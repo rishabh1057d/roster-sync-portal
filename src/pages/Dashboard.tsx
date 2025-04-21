@@ -41,23 +41,23 @@ const Dashboard = () => {
   return (
     <div>
       <PageHeader
-        title="Dashboard"
-        description="Welcome back! Here's an overview of your classes."
+        title="NIET Faculty Dashboard"
+        description="Welcome to Noida Institute of Engineering and Technology's Attendance Management System"
         actions={
           <Button onClick={handleCreateClass}>
             <Plus size={16} className="mr-2" />
-            New Class
+            Create Course
           </Button>
         }
       />
 
       {classes.length === 0 ? (
         <EmptyState
-          title="No Classes Yet"
-          description="Get started by creating your first class to track attendance."
+          title="No Courses Created"
+          description="Get started by creating your first course to track student attendance."
           icon={<AlertCircle size={40} />}
           action={{
-            label: "Create Class",
+            label: "Create Course",
             onClick: handleCreateClass,
           }}
         />

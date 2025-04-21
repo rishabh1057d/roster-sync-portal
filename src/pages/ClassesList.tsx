@@ -87,12 +87,12 @@ const ClassesList = () => {
   return (
     <div>
       <PageHeader
-        title="Classes"
-        description="Manage your classes and their attendance"
+        title="NIET Course Catalog"
+        description="Manage your courses and their attendance records"
         actions={
           <Button onClick={handleCreateClass}>
             <Plus size={16} className="mr-2" />
-            New Class
+            New Course
           </Button>
         }
       />

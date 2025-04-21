@@ -1,4 +1,3 @@
-
 import { Class, Student, Attendance, AttendanceStatus } from '@/types';
 import { v4 as uuidv4 } from 'uuid';
 
@@ -223,39 +222,39 @@ export const exportAttendanceCsv = (classId: string): string => {
 export const initializeMockData = (userId: string) => {
   // Only initialize if no data exists
   if (getFromStorage<Class[]>('classes', []).length === 0) {
-    // Create mock classes
+    // Create mock classes with NIET branding
     const class1 = createClass({
       name: 'Mathematics 101',
-      description: 'Introduction to Calculus',
+      description: 'Introduction to Calculus - NIET Engineering Department',
       schedule: 'MWF 9:00 AM - 10:30 AM',
       userId
     });
     
     const class2 = createClass({
       name: 'Physics 201',
-      description: 'Classical Mechanics',
+      description: 'Classical Mechanics - NIET Science Department',
       schedule: 'TTh 1:00 PM - 2:30 PM',
       userId
     });
     
-    // Create mock students for Mathematics
+    // Create mock students with Indian names for Mathematics
     const mathStudents = [
-      { firstName: 'John', lastName: 'Doe', email: 'john.doe@example.com', classId: class1.id },
-      { firstName: 'Jane', lastName: 'Smith', email: 'jane.smith@example.com', classId: class1.id },
-      { firstName: 'Bob', lastName: 'Johnson', email: 'bob.j@example.com', classId: class1.id },
-      { firstName: 'Alice', lastName: 'Williams', email: 'alice.w@example.com', classId: class1.id },
-      { firstName: 'Charlie', lastName: 'Brown', email: 'charlie.b@example.com', classId: class1.id }
+      { firstName: 'Aditya', lastName: 'Sharma', email: 'aditya.sharma@niet.ac.in', classId: class1.id },
+      { firstName: 'Priya', lastName: 'Patel', email: 'priya.patel@niet.ac.in', classId: class1.id },
+      { firstName: 'Rahul', lastName: 'Kumar', email: 'rahul.kumar@niet.ac.in', classId: class1.id },
+      { firstName: 'Neha', lastName: 'Gupta', email: 'neha.gupta@niet.ac.in', classId: class1.id },
+      { firstName: 'Vikram', lastName: 'Singh', email: 'vikram.singh@niet.ac.in', classId: class1.id }
     ];
     
     mathStudents.forEach(student => createStudent(student));
     
-    // Create mock students for Physics
+    // Create mock students with Indian names for Physics
     const physicsStudents = [
-      { firstName: 'David', lastName: 'Miller', email: 'david.m@example.com', classId: class2.id },
-      { firstName: 'Emma', lastName: 'Davis', email: 'emma.d@example.com', classId: class2.id },
-      { firstName: 'Frank', lastName: 'Wilson', email: 'frank.w@example.com', classId: class2.id },
-      { firstName: 'Grace', lastName: 'Moore', email: 'grace.m@example.com', classId: class2.id },
-      { firstName: 'Henry', lastName: 'Taylor', email: 'henry.t@example.com', classId: class2.id }
+      { firstName: 'Ananya', lastName: 'Reddy', email: 'ananya.reddy@niet.ac.in', classId: class2.id },
+      { firstName: 'Rohan', lastName: 'Mehta', email: 'rohan.mehta@niet.ac.in', classId: class2.id },
+      { firstName: 'Shreya', lastName: 'Joshi', email: 'shreya.joshi@niet.ac.in', classId: class2.id },
+      { firstName: 'Arjun', lastName: 'Malhotra', email: 'arjun.malhotra@niet.ac.in', classId: class2.id },
+      { firstName: 'Divya', lastName: 'Krishnamurthy', email: 'divya.k@niet.ac.in', classId: class2.id }
     ];
     
     physicsStudents.forEach(student => createStudent(student));

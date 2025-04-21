@@ -128,8 +128,8 @@ const Reports = () => {
   return (
     <div>
       <PageHeader
-        title="Attendance Reports"
-        description="View and export attendance data for your classes"
+        title="NIET Attendance Reports"
+        description="Comprehensive attendance tracking for NIET faculty"
       />
 
       {classes.length === 0 ? (
