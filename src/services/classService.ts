@@ -1,60 +1,57 @@
 
+import { supabase } from '@/integrations/supabase/client';
 import { Class } from '@/types';
-import { v4 as uuidv4 } from 'uuid';
 
-// Helper to save data to localStorage
-const saveToStorage = (key: string, data: any) => {
-  localStorage.setItem(key, JSON.stringify(data));
+export const getClasses = async (userId: string) => {
+  const { data, error } = await supabase
+    .from('classes')
+    .select('*')
+    .order('created_at', { ascending: false });
+
+  if (error) throw error;
+  return data as Class[];
 };
 
-// Helper to get data from localStorage
-const getFromStorage = <T>(key: string, defaultValue: T): T => {
-  const stored = localStorage.getItem(key);
-  return stored ? JSON.parse(stored) : defaultValue;
+export const getClass = async (classId: string) => {
+  const { data, error } = await supabase
+    .from('classes')
+    .select('*')
+    .eq('id', classId)
+    .single();
+
+  if (error) throw error;
+  return data as Class;
 };
 
-export const getClasses = (userId: string): Class[] => {
-  return getFromStorage<Class[]>('classes', []).filter(c => c.userId === userId);
+export const createClass = async (classData: Omit<Class, 'id' | 'createdAt'>) => {
+  const { data, error } = await supabase
+    .from('classes')
+    .insert([classData])
+    .select()
+    .single();
+
+  if (error) throw error;
+  return data as Class;
 };
 
-export const getClass = (classId: string): Class | undefined => {
-  return getFromStorage<Class[]>('classes', []).find(c => c.id === classId);
+export const updateClass = async (classId: string, classData: Partial<Class>) => {
+  const { data, error } = await supabase
+    .from('classes')
+    .update(classData)
+    .eq('id', classId)
+    .select()
+    .single();
+
+  if (error) throw error;
+  return data as Class;
 };
 
-export const createClass = (classData: Omit<Class, 'id' | 'createdAt'>): Class => {
-  const classes = getFromStorage<Class[]>('classes', []);
-  const newClass: Class = {
-    ...classData,
-    id: uuidv4(),
-    createdAt: new Date().toISOString()
-  };
-  
-  classes.push(newClass);
-  saveToStorage('classes', classes);
-  return newClass;
-};
+export const deleteClass = async (classId: string) => {
+  const { error } = await supabase
+    .from('classes')
+    .delete()
+    .eq('id', classId);
 
-export const updateClass = (classId: string, classData: Partial<Class>): Class | undefined => {
-  const classes = getFromStorage<Class[]>('classes', []);
-  const index = classes.findIndex(c => c.id === classId);
-  
-  if (index !== -1) {
-    classes[index] = { ...classes[index], ...classData };
-    saveToStorage('classes', classes);
-    return classes[index];
-  }
-  
-  return undefined;
-};
-
-export const deleteClass = (classId: string): boolean => {
-  const classes = getFromStorage<Class[]>('classes', []);
-  const filteredClasses = classes.filter(c => c.id !== classId);
-  
-  if (filteredClasses.length !== classes.length) {
-    saveToStorage('classes', filteredClasses);
-    return true;
-  }
-  
-  return false;
+  if (error) throw error;
+  return true;
 };

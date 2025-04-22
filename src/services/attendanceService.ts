@@ -1,65 +1,70 @@
 
+import { supabase } from '@/integrations/supabase/client';
 import { Attendance, AttendanceStatus } from '@/types';
-import { v4 as uuidv4 } from 'uuid';
 
-// Helper to save data to localStorage
-const saveToStorage = (key: string, data: any) => {
-  localStorage.setItem(key, JSON.stringify(data));
+export const getAttendanceByClassAndDate = async (classId: string, date: string) => {
+  const { data, error } = await supabase
+    .from('attendance')
+    .select('*')
+    .eq('class_id', classId)
+    .eq('date', date);
+
+  if (error) throw error;
+  return data as Attendance[];
 };
 
-// Helper to get data from localStorage
-const getFromStorage = <T>(key: string, defaultValue: T): T => {
-  const stored = localStorage.getItem(key);
-  return stored ? JSON.parse(stored) : defaultValue;
+export const getAttendanceByStudent = async (studentId: string) => {
+  const { data, error } = await supabase
+    .from('attendance')
+    .select('*')
+    .eq('student_id', studentId)
+    .order('date', { ascending: false });
+
+  if (error) throw error;
+  return data as Attendance[];
 };
 
-export const getAttendanceByClassAndDate = (classId: string, date: string): Attendance[] => {
-  return getFromStorage<Attendance[]>('attendance', [])
-    .filter(a => a.classId === classId && a.date === date);
-};
-
-export const getAttendanceByStudent = (studentId: string): Attendance[] => {
-  return getFromStorage<Attendance[]>('attendance', [])
-    .filter(a => a.studentId === studentId);
-};
-
-export const markAttendance = (studentId: string, classId: string, date: string, status: AttendanceStatus): Attendance => {
-  const attendance = getFromStorage<Attendance[]>('attendance', []);
-  
-  // Check if attendance already exists for this student, class, and date
-  const existingIndex = attendance.findIndex(
-    a => a.studentId === studentId && a.classId === classId && a.date === date
-  );
-  
-  if (existingIndex !== -1) {
-    // Update existing record
-    attendance[existingIndex].status = status;
-    saveToStorage('attendance', attendance);
-    return attendance[existingIndex];
-  } else {
-    // Create new record
-    const newAttendance: Attendance = {
-      id: uuidv4(),
-      studentId,
-      classId,
+export const markAttendance = async (
+  studentId: string, 
+  classId: string, 
+  date: string, 
+  status: AttendanceStatus
+) => {
+  const { data, error } = await supabase
+    .from('attendance')
+    .upsert({
+      student_id: studentId,
+      class_id: classId,
       date,
       status
-    };
-    
-    attendance.push(newAttendance);
-    saveToStorage('attendance', attendance);
-    return newAttendance;
-  }
+    }, {
+      onConflict: 'student_id,class_id,date'
+    })
+    .select()
+    .single();
+
+  if (error) throw error;
+  return data as Attendance;
 };
 
-export const getAttendanceStats = (classId: string): Record<AttendanceStatus, number> => {
-  const allAttendance = getFromStorage<Attendance[]>('attendance', [])
-    .filter(a => a.classId === classId);
-  
-  return {
-    present: allAttendance.filter(a => a.status === 'present').length,
-    absent: allAttendance.filter(a => a.status === 'absent').length,
-    late: allAttendance.filter(a => a.status === 'late').length,
-    excused: allAttendance.filter(a => a.status === 'excused').length
+export const getAttendanceStats = async (classId: string) => {
+  const { data, error } = await supabase
+    .from('attendance')
+    .select('status')
+    .eq('class_id', classId);
+
+  if (error) throw error;
+
+  const stats = {
+    present: 0,
+    absent: 0,
+    late: 0,
+    excused: 0
   };
+
+  data.forEach(record => {
+    stats[record.status as AttendanceStatus]++;
+  });
+
+  return stats;
 };
