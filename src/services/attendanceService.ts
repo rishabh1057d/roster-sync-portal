@@ -50,9 +50,8 @@ export const markAttendance = async (
   try {
     console.log(`Marking attendance for student ${studentId} in class ${classId} on ${date} with status ${status}`);
     
-    // Directly attempt to create or update attendance record
-    // This will work even if the database is empty
-    const { data, error } = await supabase
+    // Perform the upsert operation without returning data
+    const { error } = await supabase
       .from('attendance')
       .upsert({
         student_id: studentId,
@@ -73,10 +72,23 @@ export const markAttendance = async (
     console.log(`Successfully marked attendance for student ${studentId}`);
     toast.success(`Attendance marked as ${status}`);
     
-    // Create a placeholder response if no data is returned
-    // This helps handle the case when the database is completely empty
-    const responseData = data && data[0] ? data[0] : {
-      id: 'temp-id', // Temporary ID until database assigns one
+    // After successful upsert, fetch the updated record
+    const { data: fetchedData, error: fetchError } = await supabase
+      .from('attendance')
+      .select('*')
+      .eq('student_id', studentId)
+      .eq('class_id', classId)
+      .eq('date', date)
+      .maybeSingle();
+      
+    if (fetchError) {
+      console.error("Error fetching updated attendance:", fetchError);
+      // Continue since the upsert was successful
+    }
+    
+    // Create the response object using fetched data or fallback to input parameters
+    const responseData = fetchedData || {
+      id: 'generated', // This won't be used by the frontend in a meaningful way
       student_id: studentId,
       class_id: classId,
       date,
