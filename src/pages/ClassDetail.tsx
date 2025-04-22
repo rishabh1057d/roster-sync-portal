@@ -1,14 +1,15 @@
-
 import { useEffect, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { 
   getClass, 
   getStudents, 
-  deleteStudent, 
+  deleteStudent
+} from "@/services/dataService";
+import { 
   getAttendanceByClassAndDate,
   markAttendance,
   exportAttendanceCsv
-} from "@/services/dataService";
+} from "@/services/attendanceService";
 import { Class, Student, AttendanceStatus } from "@/types";
 import PageHeader from "@/components/PageHeader";
 import { Button } from "@/components/ui/button";
@@ -85,38 +86,53 @@ const ClassDetail = () => {
   const [studentToDelete, setStudentToDelete] = useState<string | null>(null);
 
   useEffect(() => {
-    if (!classId) return;
+    const fetchData = async () => {
+      if (!classId) return;
+      setIsLoading(true);
 
-    // Fetch class details
-    const fetchedClass = getClass(classId);
-    if (fetchedClass) {
-      setClassDetails(fetchedClass);
-      
-      // Fetch students
-      const fetchedStudents = getStudents(classId);
-      setStudents(fetchedStudents);
-      
-      // Fetch attendance for the selected date
-      loadAttendanceForDate(selectedDate);
-    } else {
-      toast.error("Class not found");
-      navigate("/classes");
-    }
-    
-    setIsLoading(false);
+      try {
+        // Fetch class details
+        const fetchedClass = await getClass(classId);
+        if (fetchedClass) {
+          setClassDetails(fetchedClass);
+          
+          // Fetch students
+          const fetchedStudents = await getStudents(classId);
+          setStudents(fetchedStudents);
+          
+          // Fetch attendance for the selected date
+          await loadAttendanceForDate(selectedDate);
+        } else {
+          toast.error("Class not found");
+          navigate("/classes");
+        }
+      } catch (error) {
+        console.error("Error fetching data:", error);
+        toast.error("Failed to load class data");
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    fetchData();
   }, [classId, navigate]);
 
-  const loadAttendanceForDate = (date: string) => {
+  const loadAttendanceForDate = async (date: string) => {
     if (!classId) return;
     
-    const attendanceRecords = getAttendanceByClassAndDate(classId, date);
-    const newAttendanceMap: Record<string, AttendanceStatus> = {};
-    
-    attendanceRecords.forEach((record) => {
-      newAttendanceMap[record.studentId] = record.status;
-    });
-    
-    setAttendanceMap(newAttendanceMap);
+    try {
+      const attendanceRecords = await getAttendanceByClassAndDate(classId, date);
+      const newAttendanceMap: Record<string, AttendanceStatus> = {};
+      
+      attendanceRecords.forEach((record) => {
+        newAttendanceMap[record.studentId] = record.status;
+      });
+      
+      setAttendanceMap(newAttendanceMap);
+    } catch (error) {
+      console.error("Error loading attendance:", error);
+      toast.error("Failed to load attendance data");
+    }
   };
 
   const handleDateChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -125,18 +141,24 @@ const ClassDetail = () => {
     loadAttendanceForDate(newDate);
   };
 
-  const handleAttendanceChange = (studentId: string, status: AttendanceStatus) => {
+  const handleAttendanceChange = async (studentId: string, status: AttendanceStatus) => {
     if (!classId) return;
     
-    markAttendance(studentId, classId, selectedDate, status);
-    
-    // Update local state
-    setAttendanceMap((prev) => ({
-      ...prev,
-      [studentId]: status
-    }));
-    
-    toast.success(`Attendance marked as ${status}`);
+    try {
+      // Update backend
+      await markAttendance(studentId, classId, selectedDate, status);
+      
+      // Update local state
+      setAttendanceMap((prev) => ({
+        ...prev,
+        [studentId]: status
+      }));
+      
+      toast.success(`Attendance marked as ${status}`);
+    } catch (error) {
+      console.error("Error marking attendance:", error);
+      toast.error("Failed to update attendance");
+    }
   };
 
   const handleAddStudent = () => {
@@ -182,41 +204,47 @@ const ClassDetail = () => {
     }
   };
 
-  const handleDeleteStudent = () => {
+  const handleDeleteStudent = async () => {
     if (!studentToDelete) return;
     
-    const success = deleteStudent(studentToDelete);
-    if (success) {
+    try {
+      await deleteStudent(studentToDelete);
       // Update state
       setStudents(students.filter((student) => student.id !== studentToDelete));
       toast.success("Student deleted successfully");
-    } else {
+    } catch (error) {
+      console.error("Error deleting student:", error);
       toast.error("Failed to delete student");
+    } finally {
+      setStudentToDelete(null);
     }
-    
-    setStudentToDelete(null);
   };
 
-  const handleExportCsv = () => {
+  const handleExportCsv = async () => {
     if (!classId || !classDetails) return;
     
-    const csvContent = exportAttendanceCsv(classId);
-    if (!csvContent) {
-      toast.error("No attendance data to export");
-      return;
+    try {
+      const csvContent = await exportAttendanceCsv(classId);
+      if (!csvContent) {
+        toast.error("No attendance data to export");
+        return;
+      }
+      
+      // Create blob and trigger download
+      const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.setAttribute("href", url);
+      link.setAttribute("download", `${classDetails.name}_attendance.csv`);
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      
+      toast.success("Attendance exported as CSV");
+    } catch (error) {
+      console.error("Error exporting CSV:", error);
+      toast.error("Failed to export attendance data");
     }
-    
-    // Create blob and trigger download
-    const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement("a");
-    link.setAttribute("href", url);
-    link.setAttribute("download", `${classDetails.name}_attendance.csv`);
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-    
-    toast.success("Attendance exported as CSV");
   };
 
   if (isLoading) {

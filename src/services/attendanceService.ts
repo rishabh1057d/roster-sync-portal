@@ -46,6 +46,8 @@ export const markAttendance = async (
   date: string, 
   status: AttendanceStatus
 ) => {
+  console.log(`Marking attendance: ${studentId}, ${classId}, ${date}, ${status}`);
+  
   const { data, error } = await supabase
     .from('attendance')
     .upsert({
@@ -59,7 +61,10 @@ export const markAttendance = async (
     .select()
     .single();
 
-  if (error) throw error;
+  if (error) {
+    console.error("Error marking attendance:", error);
+    throw error;
+  }
   
   // Map database fields to our frontend model
   return {
@@ -91,4 +96,49 @@ export const getAttendanceStats = async (classId: string) => {
   });
 
   return stats;
+};
+
+export const exportAttendanceCsv = async (classId: string) => {
+  try {
+    // Get attendance data for the class
+    const { data: attendanceData, error: attendanceError } = await supabase
+      .from('attendance')
+      .select(`
+        id,
+        date,
+        status,
+        students (
+          id,
+          first_name,
+          last_name
+        )
+      `)
+      .eq('class_id', classId)
+      .order('date', { ascending: false });
+
+    if (attendanceError) throw attendanceError;
+
+    if (!attendanceData || attendanceData.length === 0) {
+      return null;
+    }
+
+    // Format data for CSV
+    const headers = ['Date', 'Student', 'Status'];
+    const rows = attendanceData.map(record => [
+      record.date,
+      `${record.students.first_name} ${record.students.last_name}`,
+      record.status
+    ]);
+
+    // Create CSV content
+    const csvContent = [
+      headers.join(','),
+      ...rows.map(row => row.join(','))
+    ].join('\n');
+
+    return csvContent;
+  } catch (error) {
+    console.error('Error exporting attendance CSV:', error);
+    return null;
+  }
 };
