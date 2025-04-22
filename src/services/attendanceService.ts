@@ -1,4 +1,3 @@
-
 import { supabase } from '@/integrations/supabase/client';
 import { Attendance, AttendanceStatus } from '@/types';
 import { toast } from '@/components/ui/sonner';
@@ -50,31 +49,26 @@ export const markAttendance = async (
   try {
     console.log(`Marking attendance for student ${studentId} in class ${classId} on ${date} with status ${status}`);
     
-    // Simplified approach: first check if record exists
-    const { data: existingRecord, error: checkError } = await supabase
+    // First try to find an existing record
+    const { data: existingRecords } = await supabase
       .from('attendance')
       .select('id')
       .eq('student_id', studentId)
       .eq('class_id', classId)
-      .eq('date', date)
-      .maybeSingle();
-    
-    if (checkError) {
-      console.error("Error checking existing attendance:", checkError);
-      toast.error("Failed to update attendance. Please try again.");
-      throw checkError;
-    }
+      .eq('date', date);
     
     let result;
     
-    if (existingRecord) {
-      // Update existing record if found
+    if (existingRecords && existingRecords.length > 0) {
+      // Update existing record
+      console.log(`Found existing attendance record with ID: ${existingRecords[0].id}, updating status to ${status}`);
       result = await supabase
         .from('attendance')
         .update({ status })
-        .eq('id', existingRecord.id);
+        .eq('id', existingRecords[0].id);
     } else {
-      // Insert new record if not found
+      // Create new record
+      console.log(`No existing attendance record found, creating new record with status ${status}`);
       result = await supabase
         .from('attendance')
         .insert({
@@ -86,37 +80,21 @@ export const markAttendance = async (
     }
     
     if (result.error) {
-      console.error("Error marking attendance:", result.error);
+      console.error("Error with attendance operation:", result.error);
       toast.error("Failed to update attendance. Please try again.");
       throw result.error;
     }
     
-    // Log successful attendance update
-    console.log(`Successfully marked attendance for student ${studentId}`);
+    console.log(`Successfully marked attendance for student ${studentId} as ${status}`);
     toast.success(`Attendance marked as ${status}`);
     
-    // Fetch the updated record
-    const { data: updatedRecord, error: fetchError } = await supabase
-      .from('attendance')
-      .select('*')
-      .eq('student_id', studentId)
-      .eq('class_id', classId)
-      .eq('date', date)
-      .maybeSingle();
-      
-    if (fetchError) {
-      console.error("Error fetching updated attendance:", fetchError);
-      // Continue since the update/insert was successful
-    }
-    
-    // Map database fields to our frontend model
     return {
-      id: updatedRecord?.id || 'temp-id',
-      studentId: studentId,
-      classId: classId,
-      date: date,
-      status: status
-    } as Attendance;
+      id: existingRecords && existingRecords.length > 0 ? existingRecords[0].id : 'new-record',
+      studentId,
+      classId,
+      date,
+      status
+    };
   } catch (error) {
     console.error("Unexpected error in markAttendance:", error);
     toast.error("An unexpected error occurred while updating attendance.");
