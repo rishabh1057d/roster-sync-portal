@@ -1,6 +1,6 @@
-
 import { supabase } from '@/integrations/supabase/client';
 import { Attendance, AttendanceStatus } from '@/types';
+import { toast } from '@/components/ui/sonner';
 
 export const getAttendanceByClassAndDate = async (classId: string, date: string) => {
   const { data, error } = await supabase
@@ -46,34 +46,45 @@ export const markAttendance = async (
   date: string, 
   status: AttendanceStatus
 ) => {
-  console.log(`Marking attendance: ${studentId}, ${classId}, ${date}, ${status}`);
-  
-  const { data, error } = await supabase
-    .from('attendance')
-    .upsert({
-      student_id: studentId,
-      class_id: classId,
-      date,
-      status
-    }, {
-      onConflict: 'student_id,class_id,date'
-    })
-    .select()
-    .single();
+  try {
+    console.log(`Marking attendance for student ${studentId} in class ${classId} on ${date} with status ${status}`);
+    
+    const { data, error } = await supabase
+      .from('attendance')
+      .upsert({
+        student_id: studentId,
+        class_id: classId,
+        date,
+        status
+      }, {
+        onConflict: 'student_id,class_id,date',
+        returning: 'representation'
+      })
+      .select()
+      .single();
 
-  if (error) {
-    console.error("Error marking attendance:", error);
+    if (error) {
+      console.error("Error marking attendance:", error);
+      toast.error("Failed to update attendance. Please try again.");
+      throw error;
+    }
+    
+    // Log successful attendance update
+    console.log(`Successfully marked attendance for student ${studentId}`);
+    
+    // Map database fields to our frontend model
+    return {
+      id: data.id,
+      studentId: data.student_id,
+      classId: data.class_id,
+      date: data.date,
+      status: data.status as AttendanceStatus
+    } as Attendance;
+  } catch (error) {
+    console.error("Unexpected error in markAttendance:", error);
+    toast.error("An unexpected error occurred while updating attendance.");
     throw error;
   }
-  
-  // Map database fields to our frontend model
-  return {
-    id: data.id,
-    studentId: data.student_id,
-    classId: data.class_id,
-    date: data.date,
-    status: data.status as AttendanceStatus
-  } as Attendance;
 };
 
 export const getAttendanceStats = async (classId: string) => {
