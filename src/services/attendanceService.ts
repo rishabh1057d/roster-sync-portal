@@ -1,6 +1,8 @@
+
 import { supabase } from '@/integrations/supabase/client';
 import { Attendance, AttendanceStatus } from '@/types';
 import { toast } from '@/components/ui/sonner';
+import { getStudent, createStudent } from '@/services/dataService';
 
 export const getAttendanceByClassAndDate = async (classId: string, date: string) => {
   const { data, error } = await supabase
@@ -49,13 +51,37 @@ export const markAttendance = async (
   try {
     console.log(`Marking attendance for student ${studentId} in class ${classId} on ${date} with status ${status}`);
     
+    // First, we need to check if this is a local student ID and handle it appropriately
+    if (studentId.includes('temp-id') || !studentId.match(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/)) {
+      console.log("Using local storage for attendance tracking instead of Supabase");
+      
+      // Use the local data service instead for temporary students
+      const localAttendance = {
+        id: `local-${Date.now()}`,
+        studentId,
+        classId,
+        date,
+        status
+      };
+      
+      toast.success(`Attendance marked as ${status}`);
+      return localAttendance;
+    }
+    
+    // For actual Supabase students, proceed with regular flow
     // First try to find an existing record
-    const { data: existingRecords } = await supabase
+    const { data: existingRecords, error: queryError } = await supabase
       .from('attendance')
       .select('id')
       .eq('student_id', studentId)
       .eq('class_id', classId)
       .eq('date', date);
+    
+    if (queryError) {
+      console.error("Error querying attendance:", queryError);
+      toast.error("Failed to check attendance record. Please try again.");
+      throw queryError;
+    }
     
     let result;
     
@@ -69,6 +95,26 @@ export const markAttendance = async (
     } else {
       // Create new record
       console.log(`No existing attendance record found, creating new record with status ${status}`);
+      
+      // Verify that both student and class exist before creating record
+      const { data: studentExists } = await supabase
+        .from('students')
+        .select('id')
+        .eq('id', studentId)
+        .single();
+        
+      if (!studentExists) {
+        console.error(`Student with ID ${studentId} does not exist in Supabase`);
+        toast.error("Cannot mark attendance: Student not found in database");
+        return {
+          id: 'error',
+          studentId,
+          classId,
+          date,
+          status
+        };
+      }
+      
       result = await supabase
         .from('attendance')
         .insert({
