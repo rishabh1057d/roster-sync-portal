@@ -1,3 +1,4 @@
+
 import { supabase } from '@/integrations/supabase/client';
 import { Attendance, AttendanceStatus } from '@/types';
 import { toast } from '@/components/ui/sonner';
@@ -57,8 +58,7 @@ export const markAttendance = async (
         date,
         status
       }, {
-        onConflict: 'student_id,class_id,date',
-        returning: 'representation'
+        onConflict: 'student_id,class_id,date'
       })
       .select()
       .single();
