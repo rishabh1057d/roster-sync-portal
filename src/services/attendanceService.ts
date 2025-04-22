@@ -10,7 +10,15 @@ export const getAttendanceByClassAndDate = async (classId: string, date: string)
     .eq('date', date);
 
   if (error) throw error;
-  return data as Attendance[];
+  
+  // Map database fields to our frontend model
+  return data.map(item => ({
+    id: item.id,
+    studentId: item.student_id,
+    classId: item.class_id,
+    date: item.date,
+    status: item.status as AttendanceStatus
+  })) as Attendance[];
 };
 
 export const getAttendanceByStudent = async (studentId: string) => {
@@ -21,7 +29,15 @@ export const getAttendanceByStudent = async (studentId: string) => {
     .order('date', { ascending: false });
 
   if (error) throw error;
-  return data as Attendance[];
+  
+  // Map database fields to our frontend model
+  return data.map(item => ({
+    id: item.id,
+    studentId: item.student_id,
+    classId: item.class_id,
+    date: item.date,
+    status: item.status as AttendanceStatus
+  })) as Attendance[];
 };
 
 export const markAttendance = async (
@@ -44,7 +60,15 @@ export const markAttendance = async (
     .single();
 
   if (error) throw error;
-  return data as Attendance;
+  
+  // Map database fields to our frontend model
+  return {
+    id: data.id,
+    studentId: data.student_id,
+    classId: data.class_id,
+    date: data.date,
+    status: data.status as AttendanceStatus
+  } as Attendance;
 };
 
 export const getAttendanceStats = async (classId: string) => {

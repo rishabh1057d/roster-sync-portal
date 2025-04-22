@@ -10,7 +10,15 @@ export const getStudents = async (classId: string) => {
     .order('first_name');
 
   if (error) throw error;
-  return data as Student[];
+  
+  // Map database fields to our frontend model
+  return data.map(item => ({
+    id: item.id,
+    firstName: item.first_name,
+    lastName: item.last_name,
+    email: item.email,
+    classId: item.class_id
+  })) as Student[];
 };
 
 export const getStudent = async (studentId: string) => {
@@ -21,30 +29,64 @@ export const getStudent = async (studentId: string) => {
     .single();
 
   if (error) throw error;
-  return data as Student;
+  
+  // Map database fields to our frontend model
+  return {
+    id: data.id,
+    firstName: data.first_name,
+    lastName: data.last_name,
+    email: data.email,
+    classId: data.class_id
+  } as Student;
 };
 
 export const createStudent = async (studentData: Omit<Student, 'id'>) => {
   const { data, error } = await supabase
     .from('students')
-    .insert([studentData])
+    .insert([{
+      first_name: studentData.firstName,
+      last_name: studentData.lastName,
+      email: studentData.email,
+      class_id: studentData.classId
+    }])
     .select()
     .single();
 
   if (error) throw error;
-  return data as Student;
+  
+  // Map database fields to our frontend model
+  return {
+    id: data.id,
+    firstName: data.first_name,
+    lastName: data.last_name,
+    email: data.email,
+    classId: data.class_id
+  } as Student;
 };
 
 export const updateStudent = async (studentId: string, studentData: Partial<Student>) => {
   const { data, error } = await supabase
     .from('students')
-    .update(studentData)
+    .update({
+      first_name: studentData.firstName,
+      last_name: studentData.lastName,
+      email: studentData.email,
+      class_id: studentData.classId
+    })
     .eq('id', studentId)
     .select()
     .single();
 
   if (error) throw error;
-  return data as Student;
+  
+  // Map database fields to our frontend model
+  return {
+    id: data.id,
+    firstName: data.first_name,
+    lastName: data.last_name,
+    email: data.email,
+    classId: data.class_id
+  } as Student;
 };
 
 export const deleteStudent = async (studentId: string) => {

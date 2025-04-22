@@ -1,5 +1,5 @@
 
-import { Class, Student, Attendance, AttendanceStatus } from '@/types';
+import { AttendanceStatus } from '@/types';
 import { markAttendance } from './attendanceService';
 import { createClass } from './classService';
 import { createStudent } from './studentService';
@@ -9,7 +9,8 @@ export const initializeMockData = async (userId: string) => {
   // Check if data already exists
   const { data: existingClasses } = await supabase
     .from('classes')
-    .select('id');
+    .select('id')
+    .eq('user_id', userId);
   
   if (existingClasses && existingClasses.length > 0) {
     return; // Data already exists
