@@ -2,44 +2,81 @@
 import { supabase } from '@/integrations/supabase/client';
 import { Attendance, AttendanceStatus } from '@/types';
 import { toast } from '@/components/ui/sonner';
-import { getStudent, createStudent } from '@/services/dataService';
+import { getStudent } from '@/services/studentService';
 
 export const getAttendanceByClassAndDate = async (classId: string, date: string) => {
-  const { data, error } = await supabase
-    .from('attendance')
-    .select('*')
-    .eq('class_id', classId)
-    .eq('date', date);
+  try {
+    // First try to get attendance from Supabase
+    const { data: supabaseData, error } = await supabase
+      .from('attendance')
+      .select('*')
+      .eq('class_id', classId)
+      .eq('date', date);
 
-  if (error) throw error;
-  
-  // Map database fields to our frontend model
-  return data.map(item => ({
-    id: item.id,
-    studentId: item.student_id,
-    classId: item.class_id,
-    date: item.date,
-    status: item.status as AttendanceStatus
-  })) as Attendance[];
+    if (error) throw error;
+    
+    // Map database fields to our frontend model
+    const supabaseAttendance = supabaseData.map(item => ({
+      id: item.id,
+      studentId: item.student_id,
+      classId: item.class_id,
+      date: item.date,
+      status: item.status as AttendanceStatus
+    })) as Attendance[];
+    
+    // Get local attendance records for this class and date
+    const localStorageKey = `attendance_${classId}_${date}`;
+    const localAttendanceStr = localStorage.getItem(localStorageKey);
+    const localAttendance = localAttendanceStr ? JSON.parse(localAttendanceStr) as Attendance[] : [];
+    
+    // Combine both sets of attendance records
+    return [...supabaseAttendance, ...localAttendance];
+  } catch (error) {
+    console.error("Error fetching attendance:", error);
+    return [];
+  }
 };
 
 export const getAttendanceByStudent = async (studentId: string) => {
-  const { data, error } = await supabase
-    .from('attendance')
-    .select('*')
-    .eq('student_id', studentId)
-    .order('date', { ascending: false });
+  try {
+    // First check if this is a local student ID
+    if (studentId.includes('temp-id') || !studentId.match(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/)) {
+      // For local students, fetch from localStorage
+      const allAttendance: Attendance[] = [];
+      
+      // Scan through localStorage for any keys that match the pattern
+      for (let i = 0; i < localStorage.length; i++) {
+        const key = localStorage.key(i);
+        if (key && key.startsWith('attendance_')) {
+          const attendanceRecords = JSON.parse(localStorage.getItem(key) || '[]') as Attendance[];
+          allAttendance.push(...attendanceRecords.filter(record => record.studentId === studentId));
+        }
+      }
+      
+      return allAttendance;
+    }
+    
+    // For Supabase students, use the API
+    const { data, error } = await supabase
+      .from('attendance')
+      .select('*')
+      .eq('student_id', studentId)
+      .order('date', { ascending: false });
 
-  if (error) throw error;
-  
-  // Map database fields to our frontend model
-  return data.map(item => ({
-    id: item.id,
-    studentId: item.student_id,
-    classId: item.class_id,
-    date: item.date,
-    status: item.status as AttendanceStatus
-  })) as Attendance[];
+    if (error) throw error;
+    
+    // Map database fields to our frontend model
+    return data.map(item => ({
+      id: item.id,
+      studentId: item.student_id,
+      classId: item.class_id,
+      date: item.date,
+      status: item.status as AttendanceStatus
+    })) as Attendance[];
+  } catch (error) {
+    console.error("Error fetching student attendance:", error);
+    return [];
+  }
 };
 
 export const markAttendance = async (
@@ -51,21 +88,64 @@ export const markAttendance = async (
   try {
     console.log(`Marking attendance for student ${studentId} in class ${classId} on ${date} with status ${status}`);
     
-    // First, we need to check if this is a local student ID and handle it appropriately
-    if (studentId.includes('temp-id') || !studentId.match(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/)) {
-      console.log("Using local storage for attendance tracking instead of Supabase");
+    // First, check if student exists locally by looking for non-UUID format or temp-id in the ID
+    const isLocalStudent = studentId.includes('temp-id') || !studentId.match(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/);
+    
+    if (isLocalStudent) {
+      console.log("Using local storage for attendance tracking");
       
-      // Use the local data service instead for temporary students
-      const localAttendance = {
-        id: `local-${Date.now()}`,
-        studentId,
-        classId,
-        date,
-        status
-      };
+      // For locally stored students, we use localStorage to track attendance
+      const localStorageKey = `attendance_${classId}_${date}`;
+      const existingRecordsStr = localStorage.getItem(localStorageKey);
+      const existingRecords: Attendance[] = existingRecordsStr ? JSON.parse(existingRecordsStr) : [];
+      
+      // Check if we already have a record for this student
+      const existingIndex = existingRecords.findIndex(record => record.studentId === studentId);
+      
+      if (existingIndex >= 0) {
+        // Update existing record
+        existingRecords[existingIndex].status = status;
+      } else {
+        // Create new record
+        existingRecords.push({
+          id: `local-${Date.now()}`,
+          studentId,
+          classId,
+          date,
+          status
+        });
+      }
+      
+      // Save back to localStorage
+      localStorage.setItem(localStorageKey, JSON.stringify(existingRecords));
       
       toast.success(`Attendance marked as ${status}`);
-      return localAttendance;
+      return {
+        id: existingIndex >= 0 ? existingRecords[existingIndex].id : `local-${Date.now()}`,
+        studentId,
+        classId,
+        date, 
+        status
+      };
+    }
+    
+    // For Supabase students, let's first check if student exists
+    try {
+      const student = await getStudent(studentId);
+      if (!student || !student.id) {
+        toast.error("Cannot mark attendance: Student not found in database");
+        return {
+          id: 'error',
+          studentId,
+          classId,
+          date,
+          status
+        };
+      }
+    } catch (error) {
+      console.error("Error verifying student exists:", error);
+      // If we can't verify the student exists (e.g., network error),
+      // we'll still try to mark attendance but might get a foreign key error
     }
     
     // For actual Supabase students, proceed with regular flow
@@ -95,26 +175,6 @@ export const markAttendance = async (
     } else {
       // Create new record
       console.log(`No existing attendance record found, creating new record with status ${status}`);
-      
-      // Verify that both student and class exist before creating record
-      const { data: studentExists } = await supabase
-        .from('students')
-        .select('id')
-        .eq('id', studentId)
-        .single();
-        
-      if (!studentExists) {
-        console.error(`Student with ID ${studentId} does not exist in Supabase`);
-        toast.error("Cannot mark attendance: Student not found in database");
-        return {
-          id: 'error',
-          studentId,
-          classId,
-          date,
-          status
-        };
-      }
-      
       result = await supabase
         .from('attendance')
         .insert({
@@ -127,6 +187,37 @@ export const markAttendance = async (
     
     if (result.error) {
       console.error("Error with attendance operation:", result.error);
+      
+      // If we got a foreign key violation, it means the student doesn't exist in Supabase
+      if (result.error.code === '23503') {
+        toast.error("Cannot mark attendance: Student not found in database");
+        
+        // Store this in localStorage instead as a fallback
+        const localStorageKey = `attendance_${classId}_${date}`;
+        const existingRecordsStr = localStorage.getItem(localStorageKey);
+        const existingRecords: Attendance[] = existingRecordsStr ? JSON.parse(existingRecordsStr) : [];
+        
+        // Create new local record
+        existingRecords.push({
+          id: `local-${Date.now()}`,
+          studentId,
+          classId,
+          date,
+          status
+        });
+        
+        // Save back to localStorage
+        localStorage.setItem(localStorageKey, JSON.stringify(existingRecords));
+        
+        return {
+          id: 'local-fallback',
+          studentId,
+          classId,
+          date,
+          status
+        };
+      }
+      
       toast.error("Failed to update attendance. Please try again.");
       throw result.error;
     }
@@ -149,31 +240,57 @@ export const markAttendance = async (
 };
 
 export const getAttendanceStats = async (classId: string) => {
-  const { data, error } = await supabase
-    .from('attendance')
-    .select('status')
-    .eq('class_id', classId);
+  try {
+    // First get Supabase attendance
+    const { data, error } = await supabase
+      .from('attendance')
+      .select('status')
+      .eq('class_id', classId);
 
-  if (error) throw error;
+    if (error) throw error;
 
-  const stats = {
-    present: 0,
-    absent: 0,
-    late: 0,
-    excused: 0
-  };
+    const stats = {
+      present: 0,
+      absent: 0,
+      late: 0,
+      excused: 0
+    };
 
-  data.forEach(record => {
-    stats[record.status as AttendanceStatus]++;
-  });
+    // Count Supabase attendance stats
+    data.forEach(record => {
+      stats[record.status as AttendanceStatus]++;
+    });
+    
+    // Then get local attendance stats
+    for (let i = 0; i < localStorage.length; i++) {
+      const key = localStorage.key(i);
+      if (key && key.startsWith(`attendance_${classId}`)) {
+        const localRecords = JSON.parse(localStorage.getItem(key) || '[]') as Attendance[];
+        localRecords.forEach(record => {
+          stats[record.status]++;
+        });
+      }
+    }
 
-  return stats;
+    return stats;
+  } catch (error) {
+    console.error("Error getting attendance stats:", error);
+    return {
+      present: 0,
+      absent: 0,
+      late: 0,
+      excused: 0
+    };
+  }
 };
 
 export const exportAttendanceCsv = async (classId: string) => {
   try {
-    // Get attendance data for the class
-    const { data: attendanceData, error: attendanceError } = await supabase
+    // Get all attendance data for the class from both sources
+    let allAttendance: {date: string, studentId: string, studentName: string, status: string}[] = [];
+    
+    // Get Supabase attendance
+    const { data: supabaseData, error: attendanceError } = await supabase
       .from('attendance')
       .select(`
         id,
@@ -190,15 +307,54 @@ export const exportAttendanceCsv = async (classId: string) => {
 
     if (attendanceError) throw attendanceError;
 
-    if (!attendanceData || attendanceData.length === 0) {
+    // Process Supabase data
+    if (supabaseData && supabaseData.length > 0) {
+      supabaseData.forEach(record => {
+        if (record.students) {
+          allAttendance.push({
+            date: record.date,
+            studentId: record.students.id,
+            studentName: `${record.students.first_name} ${record.students.last_name}`,
+            status: record.status
+          });
+        }
+      });
+    }
+    
+    // Get local attendance
+    for (let i = 0; i < localStorage.length; i++) {
+      const key = localStorage.key(i);
+      if (key && key.startsWith(`attendance_${classId}`)) {
+        const localRecords = JSON.parse(localStorage.getItem(key) || '[]') as Attendance[];
+        
+        // Get the date from the key (format: attendance_classId_date)
+        const datePart = key.split('_')[2];
+        
+        for (const record of localRecords) {
+          // Try to get student info from localStorage
+          const studentFromLocalStorage = await getStudent(record.studentId);
+          
+          if (studentFromLocalStorage) {
+            allAttendance.push({
+              date: datePart || record.date,
+              studentId: record.studentId,
+              studentName: `${studentFromLocalStorage.firstName} ${studentFromLocalStorage.lastName}`,
+              status: record.status
+            });
+          }
+        }
+      }
+    }
+
+    if (allAttendance.length === 0) {
       return null;
     }
 
     // Format data for CSV
     const headers = ['Date', 'Student', 'Status'];
-    const rows = attendanceData.map(record => [
+    const rows = allAttendance.map(record => [
       record.date,
-      `${record.students.first_name} ${record.students.last_name}`,
+      record.studentName,
       record.status
     ]);
 
