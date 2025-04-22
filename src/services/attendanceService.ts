@@ -50,6 +50,20 @@ export const markAttendance = async (
   try {
     console.log(`Marking attendance for student ${studentId} in class ${classId} on ${date} with status ${status}`);
     
+    // First check if the student exists in the database
+    const { data: studentData, error: studentError } = await supabase
+      .from('students')
+      .select('id')
+      .eq('id', studentId)
+      .single();
+      
+    if (studentError) {
+      console.error("Error checking student:", studentError);
+      toast.error("Failed to update attendance: Student not found");
+      throw studentError;
+    }
+    
+    // Now attempt to create or update attendance record
     const { data, error } = await supabase
       .from('attendance')
       .upsert({
@@ -71,6 +85,7 @@ export const markAttendance = async (
     
     // Log successful attendance update
     console.log(`Successfully marked attendance for student ${studentId}`);
+    toast.success(`Attendance marked as ${status}`);
     
     // Map database fields to our frontend model
     return {
