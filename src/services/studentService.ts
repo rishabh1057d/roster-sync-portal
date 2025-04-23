@@ -86,6 +86,7 @@ export const getStudent = async (studentId: string) => {
 
 export const createStudent = async (studentData: Omit<Student, 'id'>) => {
   try {
+    console.log("Creating student:", studentData);
     // Try to create in Supabase first
     const { data, error } = await supabase
       .from('students')
@@ -124,13 +125,16 @@ export const createStudent = async (studentData: Omit<Student, 'id'>) => {
     }
     
     // Map database fields to our frontend model
-    return {
+    const createdStudent = {
       id: data.id,
       firstName: data.first_name,
       lastName: data.last_name,
       email: data.email,
       classId: data.class_id
     } as Student;
+    
+    console.log("Created student in Supabase:", createdStudent);
+    return createdStudent;
   } catch (error) {
     console.error("Unexpected error creating student:", error);
     throw error;

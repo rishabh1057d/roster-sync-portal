@@ -1,8 +1,8 @@
 
 import { supabase } from '@/integrations/supabase/client';
-import { Attendance, AttendanceStatus } from '@/types';
+import { Attendance, AttendanceStatus, Student } from '@/types';
 import { toast } from '@/components/ui/sonner';
-import { getStudent } from '@/services/studentService';
+import { getStudent, createStudent } from '@/services/studentService';
 
 export const getAttendanceByClassAndDate = async (classId: string, date: string) => {
   try {
@@ -133,19 +133,21 @@ export const markAttendance = async (
     try {
       const student = await getStudent(studentId);
       if (!student || !student.id) {
-        toast.error("Cannot mark attendance: Student not found in database");
-        return {
-          id: 'error',
-          studentId,
-          classId,
-          date,
-          status
-        };
+        // If student doesn't exist, create a placeholder student in database
+        console.log("Student not found in database, creating a new student record");
+        
+        await createStudent({
+          firstName: "Unknown",
+          lastName: `Student-${studentId.substring(0, 8)}`,
+          email: "",
+          classId
+        });
+        
+        toast.success("Created missing student in database");
       }
     } catch (error) {
       console.error("Error verifying student exists:", error);
-      // If we can't verify the student exists (e.g., network error),
-      // we'll still try to mark attendance but might get a foreign key error
+      // If we can't verify the student exists, we'll still try to mark attendance
     }
     
     // For actual Supabase students, proceed with regular flow
@@ -190,28 +192,60 @@ export const markAttendance = async (
       
       // If we got a foreign key violation, it means the student doesn't exist in Supabase
       if (result.error.code === '23503') {
-        toast.error("Cannot mark attendance: Student not found in database");
+        // Create a new student in database with placeholder info
+        console.log("Foreign key violation when marking attendance, creating student");
         
-        // Store this in localStorage instead as a fallback
-        const localStorageKey = `attendance_${classId}_${date}`;
-        const existingRecordsStr = localStorage.getItem(localStorageKey);
-        const existingRecords: Attendance[] = existingRecordsStr ? JSON.parse(existingRecordsStr) : [];
-        
-        // Create new local record
-        existingRecords.push({
-          id: `local-${Date.now()}`,
-          studentId,
-          classId,
-          date,
-          status
+        const newStudent = await createStudent({
+          firstName: "Unknown",
+          lastName: `Student-${studentId.substring(0, 8)}`,
+          email: "",
+          classId
         });
         
-        // Save back to localStorage
-        localStorage.setItem(localStorageKey, JSON.stringify(existingRecords));
+        // After creating the student, try to mark attendance again
+        const retryResult = await supabase
+          .from('attendance')
+          .insert({
+            student_id: newStudent.id,
+            class_id: classId,
+            date,
+            status
+          });
+            
+        if (retryResult.error) {
+          console.error("Error even after creating student:", retryResult.error);
+          toast.error("Still unable to mark attendance after creating student");
+          
+          // Store this in localStorage as a fallback
+          const localStorageKey = `attendance_${classId}_${date}`;
+          const existingRecordsStr = localStorage.getItem(localStorageKey);
+          const existingRecords: Attendance[] = existingRecordsStr ? JSON.parse(existingRecordsStr) : [];
+          
+          // Create new local record
+          existingRecords.push({
+            id: `local-${Date.now()}`,
+            studentId: newStudent.id,
+            classId,
+            date,
+            status
+          });
+          
+          // Save back to localStorage
+          localStorage.setItem(localStorageKey, JSON.stringify(existingRecords));
+          
+          return {
+            id: 'local-fallback',
+            studentId: newStudent.id,
+            classId,
+            date,
+            status
+          };
+        }
         
+        toast.success(`Created missing student and marked attendance as ${status}`);
         return {
-          id: 'local-fallback',
-          studentId,
+          id: 'new-record',
+          studentId: newStudent.id,
           classId,
           date,
           status
