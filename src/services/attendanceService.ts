@@ -1,4 +1,3 @@
-
 import { supabase } from '@/integrations/supabase/client';
 import { Attendance, AttendanceStatus, Student } from '@/types';
 import { toast } from '@/components/ui/sonner';
@@ -136,7 +135,7 @@ export const markAttendance = async (
         // If student doesn't exist, create a placeholder student in database
         console.log("Student not found in database, creating a new student record");
         
-        await createStudent({
+        const newStudent = await createStudent({
           firstName: "Unknown",
           lastName: `Student-${studentId.substring(0, 8)}`,
           email: "",
@@ -144,6 +143,16 @@ export const markAttendance = async (
         });
         
         toast.success("Created missing student in database");
+        
+        // IMPORTANT CHANGE: If the new student has a temp-id, we must use localStorage
+        // for attendance records too, not try to use Supabase with a temp-id
+        if (newStudent.id.includes('temp-id')) {
+          console.log("New student was created in localStorage, using localStorage for attendance too");
+          return markAttendance(newStudent.id, classId, date, status);
+        }
+        
+        // If we successfully created a student in Supabase, we'll continue below
+        studentId = newStudent.id;
       }
     } catch (error) {
       console.error("Error verifying student exists:", error);
@@ -192,60 +201,29 @@ export const markAttendance = async (
       
       // If we got a foreign key violation, it means the student doesn't exist in Supabase
       if (result.error.code === '23503') {
-        // Create a new student in database with placeholder info
-        console.log("Foreign key violation when marking attendance, creating student");
+        // Store this in localStorage as a fallback since we couldn't add it to Supabase
+        console.log("Foreign key violation - falling back to localStorage for attendance");
+        const localStorageKey = `attendance_${classId}_${date}`;
+        const existingRecordsStr = localStorage.getItem(localStorageKey);
+        const existingRecords: Attendance[] = existingRecordsStr ? JSON.parse(existingRecordsStr) : [];
         
-        const newStudent = await createStudent({
-          firstName: "Unknown",
-          lastName: `Student-${studentId.substring(0, 8)}`,
-          email: "",
-          classId
+        // Create new local record
+        const localId = `local-${Date.now()}`;
+        existingRecords.push({
+          id: localId,
+          studentId,
+          classId,
+          date,
+          status
         });
         
-        // After creating the student, try to mark attendance again
-        const retryResult = await supabase
-          .from('attendance')
-          .insert({
-            student_id: newStudent.id,
-            class_id: classId,
-            date,
-            status
-          });
-            
-        if (retryResult.error) {
-          console.error("Error even after creating student:", retryResult.error);
-          toast.error("Still unable to mark attendance after creating student");
-          
-          // Store this in localStorage as a fallback
-          const localStorageKey = `attendance_${classId}_${date}`;
-          const existingRecordsStr = localStorage.getItem(localStorageKey);
-          const existingRecords: Attendance[] = existingRecordsStr ? JSON.parse(existingRecordsStr) : [];
-          
-          // Create new local record
-          existingRecords.push({
-            id: `local-${Date.now()}`,
-            studentId: newStudent.id,
-            classId,
-            date,
-            status
-          });
-          
-          // Save back to localStorage
-          localStorage.setItem(localStorageKey, JSON.stringify(existingRecords));
-          
-          return {
-            id: 'local-fallback',
-            studentId: newStudent.id,
-            classId,
-            date,
-            status
-          };
-        }
+        // Save back to localStorage
+        localStorage.setItem(localStorageKey, JSON.stringify(existingRecords));
         
-        toast.success(`Created missing student and marked attendance as ${status}`);
+        toast.warning("Stored attendance locally (offline mode)");
         return {
-          id: 'new-record',
-          studentId: newStudent.id,
+          id: localId,
+          studentId,
           classId,
           date,
           status
