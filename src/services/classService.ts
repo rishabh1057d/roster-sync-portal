@@ -119,7 +119,8 @@ export const updateMathematicsClassStudents = async () => {
       console.log(`Found Mathematics class with ID: ${mathClass.id}`);
       
       // Update students for this class
-      return await updateClassStudents(mathClass.id);
+      const updatedStudents = await updateClassStudents(mathClass.id);
+      return updatedStudents;
     } else {
       console.error("Mathematics class not found");
       return null;
