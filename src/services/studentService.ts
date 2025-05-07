@@ -1,9 +1,17 @@
 
 import { supabase } from '@/integrations/supabase/client';
 import { Student } from '@/types';
+import { toast } from '@/components/ui/sonner';
+
+// Helper function to log data mismatches for debugging
+const logDataMismatch = (source: string, data: any) => {
+  console.log(`Data from ${source}:`, data);
+};
 
 export const getStudents = async (classId: string) => {
   try {
+    console.log(`Fetching students for class ${classId}`);
+    
     // First get students from Supabase
     const { data, error } = await supabase
       .from('students')
@@ -11,7 +19,10 @@ export const getStudents = async (classId: string) => {
       .eq('class_id', classId)
       .order('first_name');
 
-    if (error) throw error;
+    if (error) {
+      console.error("Supabase error fetching students:", error);
+      throw error;
+    }
     
     // Map database fields to our frontend model
     const supabaseStudents = data.map(item => ({
@@ -22,36 +33,67 @@ export const getStudents = async (classId: string) => {
       classId: item.class_id
     })) as Student[];
     
+    logDataMismatch('Supabase', supabaseStudents);
+    
     // Get locally stored students for this class
     const localStorageKey = `local_students_${classId}`;
     const localStudentsStr = localStorage.getItem(localStorageKey);
     const localStudents: Student[] = localStudentsStr ? JSON.parse(localStudentsStr) : [];
     
-    // Combine both sources
-    return [...supabaseStudents, ...localStudents];
+    logDataMismatch('localStorage', localStudents);
+    
+    // We need to ensure students with the same email don't appear twice
+    // This can happen if a student was created locally then later synced to Supabase
+    const combinedStudents = [...supabaseStudents];
+    
+    // Only add local students that don't exist in Supabase
+    localStudents.forEach(localStudent => {
+      const duplicateInSupabase = supabaseStudents.some(
+        s => s.email === localStudent.email && localStudent.email !== ''
+      );
+      
+      if (!duplicateInSupabase) {
+        combinedStudents.push(localStudent);
+      } else {
+        console.log(`Skipping local student ${localStudent.firstName} ${localStudent.lastName} as they exist in Supabase`);
+      }
+    });
+    
+    console.log("Final combined students:", combinedStudents);
+    return combinedStudents;
   } catch (error) {
     console.error("Error fetching students:", error);
     
     // Fallback to local students only
     const localStorageKey = `local_students_${classId}`;
     const localStudentsStr = localStorage.getItem(localStorageKey);
-    return localStudentsStr ? JSON.parse(localStudentsStr) : [];
+    const localStudents = localStudentsStr ? JSON.parse(localStudentsStr) : [];
+    
+    console.log("Falling back to local students only:", localStudents);
+    return localStudents;
   }
 };
 
 export const getStudent = async (studentId: string) => {
   try {
+    console.log(`Fetching student with ID: ${studentId}`);
+    
     // First check if this is a local student ID
     if (studentId.includes('temp-id') || !studentId.match(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/)) {
+      console.log("Looking for local student");
       // Look for this student in localStorage across all classes
       for (let i = 0; i < localStorage.length; i++) {
         const key = localStorage.key(i);
         if (key && key.startsWith('local_students_')) {
           const students = JSON.parse(localStorage.getItem(key) || '[]') as Student[];
           const foundStudent = students.find(s => s.id === studentId);
-          if (foundStudent) return foundStudent;
+          if (foundStudent) {
+            console.log("Found local student:", foundStudent);
+            return foundStudent;
+          }
         }
       }
+      console.log("Local student not found");
       return null;
     }
     
@@ -65,19 +107,24 @@ export const getStudent = async (studentId: string) => {
     if (error) {
       if (error.code === 'PGRST116') {
         // Record not found
+        console.log(`Student with ID ${studentId} not found in Supabase`);
         return null;
       }
+      console.error("Supabase error fetching student:", error);
       throw error;
     }
     
     // Map database fields to our frontend model
-    return {
+    const student = {
       id: data.id,
       firstName: data.first_name,
       lastName: data.last_name,
       email: data.email,
       classId: data.class_id
     } as Student;
+    
+    console.log("Found Supabase student:", student);
+    return student;
   } catch (error) {
     console.error("Error fetching student:", error);
     return null;
@@ -101,6 +148,30 @@ export const createStudent = async (studentData: Omit<Student, 'id'>) => {
 
     if (error) {
       console.error("Error creating student in Supabase:", error);
+      
+      // Check if this student already exists in Supabase
+      if (studentData.email) {
+        const { data: existingData } = await supabase
+          .from('students')
+          .select('*')
+          .eq('email', studentData.email)
+          .eq('class_id', studentData.classId)
+          .maybeSingle();
+          
+        if (existingData) {
+          console.log("Student already exists in Supabase:", existingData);
+          toast.warning("Student with this email already exists");
+          
+          // Return the existing student
+          return {
+            id: existingData.id,
+            firstName: existingData.first_name,
+            lastName: existingData.last_name,
+            email: existingData.email,
+            classId: existingData.class_id
+          } as Student;
+        }
+      }
       
       // Fall back to localStorage
       const localId = `temp-id-${Date.now()}`;
@@ -134,6 +205,25 @@ export const createStudent = async (studentData: Omit<Student, 'id'>) => {
     } as Student;
     
     console.log("Created student in Supabase:", createdStudent);
+    
+    // Remove any local duplicates with the same email
+    if (createdStudent.email) {
+      const localStorageKey = `local_students_${createdStudent.classId}`;
+      const existingStudentsStr = localStorage.getItem(localStorageKey);
+      
+      if (existingStudentsStr) {
+        const existingStudents: Student[] = JSON.parse(existingStudentsStr);
+        const filteredStudents = existingStudents.filter(
+          s => s.email !== createdStudent.email || s.email === ''
+        );
+        
+        if (filteredStudents.length !== existingStudents.length) {
+          console.log("Removed local duplicate students with same email");
+          localStorage.setItem(localStorageKey, JSON.stringify(filteredStudents));
+        }
+      }
+    }
+    
     return createdStudent;
   } catch (error) {
     console.error("Unexpected error creating student:", error);
@@ -143,8 +233,11 @@ export const createStudent = async (studentData: Omit<Student, 'id'>) => {
 
 export const updateStudent = async (studentId: string, studentData: Partial<Student>) => {
   try {
+    console.log(`Updating student ${studentId}:`, studentData);
+    
     // Check if this is a local student
     if (studentId.includes('temp-id') || !studentId.match(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/)) {
+      console.log("Updating local student");
       // Update in localStorage
       const classId = studentData.classId || '';
       
@@ -174,6 +267,7 @@ export const updateStudent = async (studentId: string, studentData: Partial<Stud
             // Save back to localStorage
             localStorage.setItem(foundKey, JSON.stringify(foundStudents));
             
+            console.log("Updated local student:", foundStudents[studentIndex]);
             return foundStudents[studentIndex];
           }
         }
@@ -183,6 +277,7 @@ export const updateStudent = async (studentId: string, studentData: Partial<Stud
     }
     
     // For Supabase students
+    console.log("Updating Supabase student");
     const { data, error } = await supabase
       .from('students')
       .update({
@@ -195,16 +290,22 @@ export const updateStudent = async (studentId: string, studentData: Partial<Stud
       .select()
       .single();
 
-    if (error) throw error;
+    if (error) {
+      console.error("Supabase error updating student:", error);
+      throw error;
+    }
     
     // Map database fields to our frontend model
-    return {
+    const updatedStudent = {
       id: data.id,
       firstName: data.first_name,
       lastName: data.last_name,
       email: data.email,
       classId: data.class_id
     } as Student;
+    
+    console.log("Updated Supabase student:", updatedStudent);
+    return updatedStudent;
   } catch (error) {
     console.error("Error updating student:", error);
     throw error;
@@ -213,8 +314,11 @@ export const updateStudent = async (studentId: string, studentData: Partial<Stud
 
 export const deleteStudent = async (studentId: string) => {
   try {
+    console.log(`Deleting student ${studentId}`);
+    
     // Check if this is a local student
     if (studentId.includes('temp-id') || !studentId.match(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/)) {
+      console.log("Deleting local student");
       // Delete from localStorage
       for (let i = 0; i < localStorage.length; i++) {
         const key = localStorage.key(i);
@@ -224,6 +328,7 @@ export const deleteStudent = async (studentId: string) => {
           
           if (updatedStudents.length !== students.length) {
             localStorage.setItem(key, JSON.stringify(updatedStudents));
+            console.log("Deleted local student successfully");
             
             // Also delete attendance records
             for (let j = 0; j < localStorage.length; j++) {
@@ -234,6 +339,7 @@ export const deleteStudent = async (studentId: string) => {
                 
                 if (updatedRecords.length !== records.length) {
                   localStorage.setItem(attendanceKey, JSON.stringify(updatedRecords));
+                  console.log("Deleted local attendance records for student");
                 }
               }
             }
@@ -243,16 +349,23 @@ export const deleteStudent = async (studentId: string) => {
         }
       }
       
+      console.log("Local student not found for deletion");
       return false;
     }
     
     // For Supabase students
+    console.log("Deleting Supabase student");
     const { error } = await supabase
       .from('students')
       .delete()
       .eq('id', studentId);
 
-    if (error) throw error;
+    if (error) {
+      console.error("Supabase error deleting student:", error);
+      throw error;
+    }
+    
+    console.log("Deleted Supabase student successfully");
     return true;
   } catch (error) {
     console.error("Error deleting student:", error);
