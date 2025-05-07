@@ -2,7 +2,7 @@
 import { supabase, isLocalStudentId } from '@/integrations/supabase/client';
 import { Student } from '@/types';
 import { toast } from '@/components/ui/sonner';
-import { logDataMismatch, getAllLocalStudents, syncStudentAcrossClasses } from '@/utils/studentUtils';
+import { logDataMismatch, getAllLocalStudents, syncStudentAcrossClasses, replaceAllStudentsWithStandardList } from '@/utils/studentUtils';
 import { 
   getLocalStudents, 
   saveStudentToLocalStorage, 
@@ -17,6 +17,40 @@ import {
   updateSupabaseStudent,
   deleteSupabaseStudent
 } from './studentSupabaseService';
+
+// New function to standardize students across all classes
+export const standardizeStudentsAcrossClasses = async () => {
+  try {
+    console.log("Starting student standardization across all classes");
+    
+    // Get all classes
+    const { data: classes, error } = await supabase
+      .from('classes')
+      .select('id');
+      
+    if (error) {
+      console.error("Error fetching classes:", error);
+      throw error;
+    }
+    
+    if (!classes || classes.length === 0) {
+      console.log("No classes found");
+      return;
+    }
+    
+    // Replace students in each class
+    for (const cls of classes) {
+      await replaceAllStudentsWithStandardList(cls.id);
+    }
+    
+    console.log("Successfully standardized students across all classes");
+    return true;
+  } catch (error) {
+    console.error("Error standardizing students:", error);
+    toast.error("Failed to standardize students");
+    return false;
+  }
+};
 
 export const getStudents = async (classId: string) => {
   try {

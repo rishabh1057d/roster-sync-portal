@@ -51,13 +51,17 @@ export const initializeMockData = async (userId: string) => {
 
     console.log("Created mock classes successfully");
 
-    // List of student names
+    // Updated list of student names from the image
     const studentNames = [
-      { firstName: 'Aarav', lastName: 'Sharma' },
-      { firstName: 'Priya', lastName: 'Nair' },
-      { firstName: 'Rohan', lastName: 'Mehta' },
-      { firstName: 'Ananya', lastName: 'Verma' },
-      { firstName: 'Kunal', lastName: 'Iyer' }
+      { firstName: 'Aarav', lastName: 'Sharma', email: 'aarav.sharma@niet.ac.in' },
+      { firstName: 'Priya', lastName: 'Patel', email: 'priya.patel@niet.ac.in' },
+      { firstName: 'Rahul', lastName: 'Kumar', email: 'rahul.kumar@niet.ac.in' },
+      { firstName: 'Ananya', lastName: 'Verma', email: 'ananya.verma@niet.ac.in' },
+      { firstName: 'Kunal', lastName: 'Mehra', email: 'kunal.mehra@niet.ac.in' },
+      { firstName: 'Ishita', lastName: 'Singh', email: 'ishita.singh@niet.ac.in' },
+      { firstName: 'Arjun', lastName: 'Reddy', email: 'arjun.reddy@niet.ac.in' },
+      { firstName: 'Neha', lastName: 'Gupta', email: 'neha.gupta@niet.ac.in' },
+      { firstName: 'Rohan', lastName: 'Joshi', email: 'rohan.joshi@niet.ac.in' }
     ];
 
     // Create students for each class
@@ -65,24 +69,24 @@ export const initializeMockData = async (userId: string) => {
     for (const cls of classes) {
       console.log(`Creating students for class: ${cls.name}`);
       
-      for (const name of studentNames) {
+      for (const student of studentNames) {
         try {
-          const student = await createStudent({
-            firstName: name.firstName,
-            lastName: name.lastName,
-            email: `${name.firstName.toLowerCase()}.${name.lastName.toLowerCase()}@niet.ac.in`,
+          const createdStudent = await createStudent({
+            firstName: student.firstName,
+            lastName: student.lastName,
+            email: student.email,
             classId: cls.id
           });
 
-          console.log(`Created student: ${student.firstName} ${student.lastName}`);
+          console.log(`Created student: ${createdStudent.firstName} ${createdStudent.lastName}`);
 
           // Create random attendance records for today
           const today = new Date().toISOString().split('T')[0];
           const statuses: AttendanceStatus[] = ['present', 'absent', 'late', 'excused'];
           const randomStatus = statuses[Math.floor(Math.random() * statuses.length)];
           
-          await markAttendance(student.id, cls.id, today, randomStatus);
-          console.log(`Marked attendance for ${student.firstName} as ${randomStatus}`);
+          await markAttendance(createdStudent.id, cls.id, today, randomStatus);
+          console.log(`Marked attendance for ${createdStudent.firstName} as ${randomStatus}`);
         } catch (error) {
           console.error("Error creating student or attendance:", error);
         }

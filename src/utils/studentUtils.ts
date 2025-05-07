@@ -59,9 +59,62 @@ export const syncStudentAcrossClasses = (student: Student) => {
         
         localStorage.setItem(classKey, JSON.stringify(classStudents));
         console.log(`Synced student ${student.firstName} ${student.lastName} to class ${classId}`);
+      } else {
+        // Update existing student to ensure consistent information
+        const updatedStudent = {
+          ...existingStudent,
+          firstName: student.firstName,
+          lastName: student.lastName,
+          email: student.email
+        };
+        
+        // Replace existing student with updated data
+        const updatedStudents = classStudents.map(s => 
+          s.id === existingStudent.id ? updatedStudent : s
+        );
+        
+        localStorage.setItem(classKey, JSON.stringify(updatedStudents));
+        console.log(`Updated student ${student.firstName} ${student.lastName} in class ${classId}`);
       }
     } catch (error) {
       console.error(`Error syncing student to class ${classKey}:`, error);
     }
   });
+};
+
+// Function to clear all existing students and replace with new ones
+export const replaceAllStudentsWithStandardList = async (classId: string): Promise<void> => {
+  // Standard list of students to use across all classes
+  const standardStudents = [
+    { firstName: 'Aarav', lastName: 'Sharma', email: 'aarav.sharma@niet.ac.in' },
+    { firstName: 'Priya', lastName: 'Patel', email: 'priya.patel@niet.ac.in' },
+    { firstName: 'Rahul', lastName: 'Kumar', email: 'rahul.kumar@niet.ac.in' },
+    { firstName: 'Ananya', lastName: 'Verma', email: 'ananya.verma@niet.ac.in' },
+    { firstName: 'Kunal', lastName: 'Mehra', email: 'kunal.mehra@niet.ac.in' },
+    { firstName: 'Ishita', lastName: 'Singh', email: 'ishita.singh@niet.ac.in' },
+    { firstName: 'Arjun', lastName: 'Reddy', email: 'arjun.reddy@niet.ac.in' },
+    { firstName: 'Neha', lastName: 'Gupta', email: 'neha.gupta@niet.ac.in' },
+    { firstName: 'Rohan', lastName: 'Joshi', email: 'rohan.joshi@niet.ac.in' }
+  ];
+  
+  try {
+    // Clear existing students for this class in localStorage
+    localStorage.setItem(`local_students_${classId}`, '[]');
+    
+    // Import required function here to avoid circular dependencies
+    const { createStudent } = await import('../services/studentService');
+    
+    // Add all standard students
+    for (const student of standardStudents) {
+      await createStudent({
+        ...student,
+        classId
+      });
+    }
+    
+    console.log(`Successfully replaced students in class ${classId} with standard list`);
+  } catch (error) {
+    console.error(`Error replacing students in class ${classId}:`, error);
+    throw error;
+  }
 };
