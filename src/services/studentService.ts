@@ -1,8 +1,8 @@
 
-import { supabase, isLocalStudentId } from '@/integrations/supabase/client';
+import { isLocalStudentId } from '@/integrations/supabase/client';
 import { Student } from '@/types';
 import { toast } from '@/components/ui/sonner';
-import { logDataMismatch, getAllLocalStudents, syncStudentAcrossClasses, replaceAllStudentsWithStandardList } from '@/utils/studentUtils';
+import { getAllLocalStudents, logDataMismatch } from '@/utils/studentUtils';
 import { 
   getLocalStudents, 
   saveStudentToLocalStorage, 
@@ -17,40 +17,10 @@ import {
   updateSupabaseStudent,
   deleteSupabaseStudent
 } from './studentSupabaseService';
+import { syncStudentAcrossClasses, standardizeStudentsAcrossClasses, replaceAllStudentsWithStandardList } from './studentSyncService';
 
-// New function to standardize students across all classes
-export const standardizeStudentsAcrossClasses = async () => {
-  try {
-    console.log("Starting student standardization across all classes");
-    
-    // Get all classes
-    const { data: classes, error } = await supabase
-      .from('classes')
-      .select('id');
-      
-    if (error) {
-      console.error("Error fetching classes:", error);
-      throw error;
-    }
-    
-    if (!classes || classes.length === 0) {
-      console.log("No classes found");
-      return;
-    }
-    
-    // Replace students in each class
-    for (const cls of classes) {
-      await replaceAllStudentsWithStandardList(cls.id);
-    }
-    
-    console.log("Successfully standardized students across all classes");
-    return true;
-  } catch (error) {
-    console.error("Error standardizing students:", error);
-    toast.error("Failed to standardize students");
-    return false;
-  }
-};
+// Re-export functions from studentSyncService
+export { standardizeStudentsAcrossClasses, replaceAllStudentsWithStandardList };
 
 export const getStudents = async (classId: string) => {
   try {
