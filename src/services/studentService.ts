@@ -1,8 +1,8 @@
 
-import { isLocalStudentId } from '@/integrations/supabase/client';
+import { supabase, isLocalStudentId } from '@/integrations/supabase/client';
 import { Student } from '@/types';
 import { toast } from '@/components/ui/sonner';
-import { getAllLocalStudents, logDataMismatch } from '@/utils/studentUtils';
+import { logDataMismatch, getAllLocalStudents, syncStudentAcrossClasses } from '@/utils/studentUtils';
 import { 
   getLocalStudents, 
   saveStudentToLocalStorage, 
@@ -17,10 +17,6 @@ import {
   updateSupabaseStudent,
   deleteSupabaseStudent
 } from './studentSupabaseService';
-import { syncStudentAcrossClasses, standardizeStudentsAcrossClasses, replaceAllStudentsWithStandardList } from './studentSyncService';
-
-// Re-export functions from studentSyncService
-export { standardizeStudentsAcrossClasses, replaceAllStudentsWithStandardList };
 
 export const getStudents = async (classId: string) => {
   try {
