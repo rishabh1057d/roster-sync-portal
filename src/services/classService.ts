@@ -1,6 +1,7 @@
 
 import { supabase } from '@/integrations/supabase/client';
 import { Class } from '@/types';
+import { updateClassStudents } from '@/utils/studentUtils';
 
 export const getClasses = async (userId: string) => {
   const { data, error } = await supabase
@@ -100,4 +101,31 @@ export const deleteClass = async (classId: string) => {
 
   if (error) throw error;
   return true;
+};
+
+// Update students in a mathematics class to match our standard list
+export const updateMathematicsClassStudents = async () => {
+  try {
+    // Get all classes
+    const { data: classes, error } = await supabase
+      .from('classes')
+      .select('*')
+      .eq('name', 'Mathematics 101');
+
+    if (error) throw error;
+    
+    if (classes && classes.length > 0) {
+      const mathClass = classes[0];
+      console.log(`Found Mathematics class with ID: ${mathClass.id}`);
+      
+      // Update students for this class
+      return await updateClassStudents(mathClass.id);
+    } else {
+      console.error("Mathematics class not found");
+      return null;
+    }
+  } catch (error) {
+    console.error("Error updating Mathematics class students:", error);
+    throw error;
+  }
 };

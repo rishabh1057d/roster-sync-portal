@@ -65,3 +65,44 @@ export const syncStudentAcrossClasses = (student: Student) => {
     }
   });
 };
+
+// Standard list of students from the provided data
+export const standardStudentList = [
+  { firstName: 'Aarav', lastName: 'Sharma', email: 'aarav.sharma@niet.ac.in' },
+  { firstName: 'Priya', lastName: 'Patel', email: 'priya.patel@niet.ac.in' },
+  { firstName: 'Rahul', lastName: 'Kumar', email: 'rahul.kumar@niet.ac.in' },
+  { firstName: 'Ananya', lastName: 'Verma', email: 'ananya.verma@niet.ac.in' },
+  { firstName: 'Kunal', lastName: 'Mehra', email: 'kunal.mehra@niet.ac.in' },
+  { firstName: 'Ishita', lastName: 'Singh', email: 'ishita.singh@niet.ac.in' },
+  { firstName: 'Arjun', lastName: 'Reddy', email: 'arjun.reddy@niet.ac.in' },
+  { firstName: 'Neha', lastName: 'Gupta', email: 'neha.gupta@niet.ac.in' },
+  { firstName: 'Rohan', lastName: 'Joshi', email: 'rohan.joshi@niet.ac.in' }
+];
+
+// Update students in a class to match the standard list
+export const updateClassStudents = async (classId: string) => {
+  try {
+    // Get the localStorage key for this class
+    const localStorageKey = `local_students_${classId}`;
+    
+    // Create new students array with standard data
+    const updatedStudents = standardStudentList.map((student, index) => {
+      return {
+        id: `temp-id-${Date.now()}-${index}`,
+        firstName: student.firstName,
+        lastName: student.lastName,
+        email: student.email,
+        classId: classId
+      };
+    });
+    
+    // Replace the existing students with updated ones
+    localStorage.setItem(localStorageKey, JSON.stringify(updatedStudents));
+    
+    console.log(`Updated students for class ${classId} with standard list`);
+    return updatedStudents;
+  } catch (error) {
+    console.error(`Error updating students for class ${classId}:`, error);
+    throw error;
+  }
+};

@@ -65,6 +65,7 @@ import {
 } from "@/components/ui/alert-dialog";
 import AttendanceStatusBadge from "@/components/AttendanceStatusBadge";
 import { toast } from "@/components/ui/sonner";
+import { updateClassStudents } from "@/utils/studentUtils";
 
 const ClassDetail = () => {
   const navigate = useNavigate();
@@ -85,6 +86,7 @@ const ClassDetail = () => {
   const [activeTab, setActiveTab] = useState("attendance");
   const [isAddingStudent, setIsAddingStudent] = useState(false);
   const [studentToDelete, setStudentToDelete] = useState<string | null>(null);
+  const [updatingStudents, setUpdatingStudents] = useState(false);
 
   useEffect(() => {
     const fetchData = async () => {
@@ -100,6 +102,19 @@ const ClassDetail = () => {
           setStudents(fetchedStudents);
           
           await loadAttendanceForDate(selectedDate);
+          
+          // If this is the Mathematics class, update the students list automatically
+          if (fetchedClass.name.includes("Mathematics")) {
+            try {
+              const updatedStudents = await updateClassStudents(classId);
+              if (updatedStudents) {
+                setStudents(updatedStudents);
+                toast.success("Students list updated to standard list");
+              }
+            } catch (error) {
+              console.error("Error updating students list:", error);
+            }
+          }
         } else {
           toast.error("Class not found");
           navigate("/classes");
@@ -198,6 +213,22 @@ const ClassDetail = () => {
       toast.error("Failed to delete student");
     } finally {
       setStudentToDelete(null);
+    }
+  };
+  
+  const handleUpdateStudentsList = async () => {
+    if (!classId) return;
+    
+    setUpdatingStudents(true);
+    try {
+      const updatedStudents = await updateClassStudents(classId);
+      setStudents(updatedStudents);
+      toast.success("Students list updated to standard list");
+    } catch (error) {
+      console.error("Error updating students list:", error);
+      toast.error("Failed to update students list");
+    } finally {
+      setUpdatingStudents(false);
     }
   };
 
@@ -399,17 +430,33 @@ const ClassDetail = () => {
         <TabsContent value="students" className="mt-6">
           <Card>
             <CardHeader className="pb-3">
-              <div className="flex items-center justify-between">
+              <div className="flex items-center justify-between flex-wrap gap-3">
                 <div>
                   <CardTitle>Students</CardTitle>
                   <CardDescription>
                     Manage students in this class
                   </CardDescription>
                 </div>
-                <Button onClick={() => setIsAddingStudent(true)}>
-                  <UserPlus size={16} className="mr-2" />
-                  Add Student
-                </Button>
+                <div className="flex gap-2">
+                  {classDetails.name.includes("Mathematics") && (
+                    <Button 
+                      variant="secondary"
+                      onClick={handleUpdateStudentsList}
+                      disabled={updatingStudents}
+                    >
+                      {updatingStudents ? (
+                        <LoadingSpinner size="sm" className="mr-2" />
+                      ) : (
+                        <Users size={16} className="mr-2" />
+                      )}
+                      Update Students List
+                    </Button>
+                  )}
+                  <Button onClick={() => setIsAddingStudent(true)}>
+                    <UserPlus size={16} className="mr-2" />
+                    Add Student
+                  </Button>
+                </div>
               </div>
             </CardHeader>
             <CardContent>

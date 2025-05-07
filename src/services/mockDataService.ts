@@ -3,6 +3,7 @@ import { AttendanceStatus } from '@/types';
 import { markAttendance } from './attendanceService';
 import { createClass } from './classService';
 import { createStudent } from './studentService';
+import { standardStudentList } from '@/utils/studentUtils';
 import { supabase } from '@/integrations/supabase/client';
 
 export const initializeMockData = async (userId: string) => {
@@ -51,26 +52,17 @@ export const initializeMockData = async (userId: string) => {
 
     console.log("Created mock classes successfully");
 
-    // List of student names
-    const studentNames = [
-      { firstName: 'Aarav', lastName: 'Sharma' },
-      { firstName: 'Priya', lastName: 'Nair' },
-      { firstName: 'Rohan', lastName: 'Mehta' },
-      { firstName: 'Ananya', lastName: 'Verma' },
-      { firstName: 'Kunal', lastName: 'Iyer' }
-    ];
-
-    // Create students for each class
+    // Create students using the standard student list
     const classes = [class1, class2, class3];
     for (const cls of classes) {
       console.log(`Creating students for class: ${cls.name}`);
       
-      for (const name of studentNames) {
+      for (const studentData of standardStudentList) {
         try {
           const student = await createStudent({
-            firstName: name.firstName,
-            lastName: name.lastName,
-            email: `${name.firstName.toLowerCase()}.${name.lastName.toLowerCase()}@niet.ac.in`,
+            firstName: studentData.firstName,
+            lastName: studentData.lastName,
+            email: studentData.email,
             classId: cls.id
           });
 
