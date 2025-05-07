@@ -1,4 +1,5 @@
-import { supabase } from '@/integrations/supabase/client';
+
+import { supabase, isLocalStudentId } from '@/integrations/supabase/client';
 import { Attendance, AttendanceStatus, Student } from '@/types';
 import { toast } from '@/components/ui/sonner';
 import { getStudent, createStudent } from '@/services/studentService';
@@ -39,7 +40,7 @@ export const getAttendanceByClassAndDate = async (classId: string, date: string)
 export const getAttendanceByStudent = async (studentId: string) => {
   try {
     // First check if this is a local student ID
-    if (studentId.includes('temp-id') || !studentId.match(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/)) {
+    if (isLocalStudentId(studentId)) {
       // For local students, fetch from localStorage
       const allAttendance: Attendance[] = [];
       
@@ -78,6 +79,76 @@ export const getAttendanceByStudent = async (studentId: string) => {
   }
 };
 
+// Try to find or create student in Supabase
+const findOrCreateStudentInSupabase = async (studentId: string, classId: string): Promise<Student | null> => {
+  try {
+    // First try to get the student
+    const student = await getStudent(studentId);
+    
+    if (student) {
+      return student;
+    }
+    
+    // If no student found, check if we can get details from local storage
+    const localStudent = await findLocalStudentById(studentId);
+    
+    if (localStudent) {
+      // Try to create this student in Supabase
+      try {
+        const { data, error } = await supabase
+          .from('students')
+          .insert({
+            first_name: localStudent.firstName,
+            last_name: localStudent.lastName,
+            email: localStudent.email,
+            class_id: classId
+          })
+          .select()
+          .single();
+          
+        if (!error && data) {
+          console.log("Successfully created student in Supabase from local data:", data);
+          
+          // Return student with Supabase ID
+          return {
+            id: data.id,
+            firstName: data.first_name,
+            lastName: data.last_name,
+            email: data.email,
+            classId: data.class_id
+          };
+        }
+      } catch (createError) {
+        console.error("Error creating student in Supabase from local data:", createError);
+      }
+    }
+    
+    return null;
+  } catch (error) {
+    console.error("Error in findOrCreateStudentInSupabase:", error);
+    return null;
+  }
+};
+
+// Helper to find a local student by ID
+const findLocalStudentById = async (studentId: string): Promise<Student | null> => {
+  for (let i = 0; i < localStorage.length; i++) {
+    const key = localStorage.key(i);
+    if (key && key.startsWith('local_students_')) {
+      try {
+        const students = JSON.parse(localStorage.getItem(key) || '[]') as Student[];
+        const student = students.find(s => s.id === studentId);
+        if (student) {
+          return student;
+        }
+      } catch (error) {
+        console.error("Error checking local storage for student:", error);
+      }
+    }
+  }
+  return null;
+};
+
 export const markAttendance = async (
   studentId: string, 
   classId: string, 
@@ -88,7 +159,7 @@ export const markAttendance = async (
     console.log(`Marking attendance for student ${studentId} in class ${classId} on ${date} with status ${status}`);
     
     // First, check if student exists locally by looking for non-UUID format or temp-id in the ID
-    const isLocalStudent = studentId.includes('temp-id') || !studentId.match(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/);
+    const isLocalStudent = isLocalStudentId(studentId);
     
     if (isLocalStudent) {
       console.log("Using local storage for attendance tracking");
@@ -130,9 +201,11 @@ export const markAttendance = async (
     
     // For Supabase students, let's first check if student exists
     try {
-      const student = await getStudent(studentId);
-      if (!student || !student.id) {
-        // If student doesn't exist, create a placeholder student in database
+      // Try to find the student in Supabase
+      const supabaseStudent = await findOrCreateStudentInSupabase(studentId, classId);
+      
+      if (!supabaseStudent) {
+        // Create a placeholder student in localStorage
         console.log("Student not found in database, creating a new student record");
         
         const newStudent = await createStudent({
@@ -142,21 +215,43 @@ export const markAttendance = async (
           classId
         });
         
-        toast.success("Created missing student in database");
-        
-        // IMPORTANT CHANGE: If the new student has a temp-id, we must use localStorage
-        // for attendance records too, not try to use Supabase with a temp-id
-        if (newStudent.id.includes('temp-id')) {
+        // If the new student has a temporary ID, use localStorage for attendance
+        if (isLocalStudentId(newStudent.id)) {
           console.log("New student was created in localStorage, using localStorage for attendance too");
           return markAttendance(newStudent.id, classId, date, status);
         }
         
-        // If we successfully created a student in Supabase, we'll continue below
+        // If we successfully created a student in Supabase, use that ID
         studentId = newStudent.id;
+      } else {
+        // Use the Supabase student ID
+        studentId = supabaseStudent.id;
       }
     } catch (error) {
       console.error("Error verifying student exists:", error);
-      // If we can't verify the student exists, we'll still try to mark attendance
+      // Fallback to localStorage
+      const localId = `temp-id-${Date.now()}`;
+      const localStorageKey = `attendance_${classId}_${date}`;
+      const existingRecordsStr = localStorage.getItem(localStorageKey);
+      const existingRecords: Attendance[] = existingRecordsStr ? JSON.parse(existingRecordsStr) : [];
+      
+      existingRecords.push({
+        id: `local-${Date.now()}`,
+        studentId: localId,
+        classId,
+        date,
+        status
+      });
+      
+      localStorage.setItem(localStorageKey, JSON.stringify(existingRecords));
+      toast.warning("Stored attendance locally (offline mode)");
+      return {
+        id: `local-${Date.now()}`,
+        studentId: localId,
+        classId,
+        date,
+        status
+      };
     }
     
     // For actual Supabase students, proceed with regular flow
@@ -200,9 +295,9 @@ export const markAttendance = async (
       console.error("Error with attendance operation:", result.error);
       
       // If we got a foreign key violation, it means the student doesn't exist in Supabase
-      if (result.error.code === '23503') {
+      if (result.error.code === '23503' || result.error.code === '42501') {
         // Store this in localStorage as a fallback since we couldn't add it to Supabase
-        console.log("Foreign key violation - falling back to localStorage for attendance");
+        console.log("Foreign key violation or RLS issue - falling back to localStorage for attendance");
         const localStorageKey = `attendance_${classId}_${date}`;
         const existingRecordsStr = localStorage.getItem(localStorageKey);
         const existingRecords: Attendance[] = existingRecordsStr ? JSON.parse(existingRecordsStr) : [];
