@@ -103,8 +103,10 @@ const ClassDetail = () => {
           
           await loadAttendanceForDate(selectedDate);
           
-          // If this is the Mathematics class, update the students list automatically
-          if (fetchedClass.name.includes("Mathematics")) {
+          // If this is one of the special classes, update the students list automatically
+          if (fetchedClass.name.includes("Mathematics") || 
+              fetchedClass.name.includes("Physics") || 
+              fetchedClass.name.includes("Computer Science")) {
             try {
               const updatedStudents = await updateClassStudents(classId);
               if (updatedStudents) {
@@ -438,7 +440,9 @@ const ClassDetail = () => {
                   </CardDescription>
                 </div>
                 <div className="flex gap-2">
-                  {classDetails.name.includes("Mathematics") && (
+                  {(classDetails.name.includes("Mathematics") || 
+                    classDetails.name.includes("Physics") || 
+                    classDetails.name.includes("Computer Science")) && (
                     <Button 
                       variant="secondary"
                       onClick={handleUpdateStudentsList}
