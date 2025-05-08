@@ -120,10 +120,10 @@ export const updateMathematicsClassStudents = async () => {
       
       // Update students for this class
       const updatedStudents = await updateClassStudents(mathClass.id);
-      return updatedStudents;
+      return updatedStudents || [];
     } else {
       console.error("Mathematics class not found");
-      return null;
+      return [];
     }
   } catch (error) {
     console.error("Error updating Mathematics class students:", error);
@@ -148,10 +148,10 @@ export const updatePhysicsClassStudents = async () => {
       
       // Update students for this class
       const updatedStudents = await updateClassStudents(physicsClass.id);
-      return updatedStudents;
+      return updatedStudents || [];
     } else {
       console.error("Physics class not found");
-      return null;
+      return [];
     }
   } catch (error) {
     console.error("Error updating Physics class students:", error);
@@ -176,10 +176,10 @@ export const updateComputerScienceClassStudents = async () => {
       
       // Update students for this class
       const updatedStudents = await updateClassStudents(csClass.id);
-      return updatedStudents;
+      return updatedStudents || [];
     } else {
       console.error("Computer Science class not found");
-      return null;
+      return [];
     }
   } catch (error) {
     console.error("Error updating Computer Science class students:", error);

@@ -2,7 +2,7 @@
 import { useEffect, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
-import { createClass, getClass, updateClass } from "@/services/dataService";
+import { createClass, getClass, updateClass } from "@/services/classService";
 import PageHeader from "@/components/PageHeader";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -27,20 +27,25 @@ const ClassForm = () => {
   useEffect(() => {
     if (isEditMode && classId) {
       // Fetch class details for editing
-      const classDetails = getClass(classId);
-      if (classDetails) {
-        setName(classDetails.name);
-        setDescription(classDetails.description);
-        setSchedule(classDetails.schedule);
-      } else {
-        toast.error("Class not found");
-        navigate("/classes");
-      }
-      setIsLoading(false);
+      const fetchClassDetails = async () => {
+        try {
+          const classDetails = await getClass(classId);
+          setName(classDetails.name);
+          setDescription(classDetails.description);
+          setSchedule(classDetails.schedule);
+          setIsLoading(false);
+        } catch (error) {
+          console.error("Error fetching class:", error);
+          toast.error("Class not found");
+          navigate("/classes");
+        }
+      };
+      
+      fetchClassDetails();
     }
   }, [classId, isEditMode, navigate]);
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
     if (!user) {
@@ -53,21 +58,17 @@ const ClassForm = () => {
     try {
       if (isEditMode && classId) {
         // Update existing class
-        const updatedClass = updateClass(classId, {
+        const updatedClass = await updateClass(classId, {
           name,
           description,
           schedule
         });
 
-        if (updatedClass) {
-          toast.success("Class updated successfully");
-          navigate(`/classes/${classId}`);
-        } else {
-          toast.error("Failed to update class");
-        }
+        toast.success("Class updated successfully");
+        navigate(`/classes/${classId}`);
       } else {
         // Create new class
-        const newClass = createClass({
+        const newClass = await createClass({
           name,
           description,
           schedule,

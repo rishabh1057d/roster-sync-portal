@@ -2,7 +2,7 @@
 import { useEffect, useState } from "react";
 import { useAuth } from "@/contexts/AuthContext";
 import { useNavigate } from "react-router-dom";
-import { getClasses, deleteClass } from "@/services/dataService";
+import { getClasses, deleteClass } from "@/services/classService";
 import { Class } from "@/types";
 import PageHeader from "@/components/PageHeader";
 import { Button } from "@/components/ui/button";
@@ -41,10 +41,20 @@ const ClassesList = () => {
     if (!user) return;
 
     // Fetch classes
-    const fetchedClasses = getClasses(user.id);
-    setClasses(fetchedClasses);
-    setFilteredClasses(fetchedClasses);
-    setIsLoading(false);
+    const fetchClasses = async () => {
+      try {
+        const fetchedClasses = await getClasses(user.id);
+        setClasses(fetchedClasses);
+        setFilteredClasses(fetchedClasses);
+        setIsLoading(false);
+      } catch (error) {
+        console.error("Error fetching classes:", error);
+        toast.error("Failed to load classes");
+        setIsLoading(false);
+      }
+    };
+    
+    fetchClasses();
   }, [user]);
 
   useEffect(() => {
@@ -66,15 +76,16 @@ const ClassesList = () => {
     navigate("/classes/new");
   };
 
-  const handleDeleteClass = () => {
+  const handleDeleteClass = async () => {
     if (!classToDelete) return;
 
-    const success = deleteClass(classToDelete);
-    if (success) {
+    try {
+      await deleteClass(classToDelete);
       toast.success("Class deleted successfully");
       // Update state
       setClasses(classes.filter((cls) => cls.id !== classToDelete));
-    } else {
+    } catch (error) {
+      console.error("Error deleting class:", error);
       toast.error("Failed to delete class");
     }
     setClassToDelete(null);
