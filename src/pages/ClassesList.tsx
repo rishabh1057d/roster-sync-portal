@@ -1,4 +1,3 @@
-
 import { useEffect, useState } from "react";
 import { useAuth } from "@/contexts/AuthContext";
 import { useNavigate } from "react-router-dom";
@@ -7,7 +6,7 @@ import { Class } from "@/types";
 import PageHeader from "@/components/PageHeader";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Calendar, Plus, Search, Users, Trash2, Edit, MoreVertical } from "lucide-react";
+import { Calendar, Plus, Search, MoreVertical, Edit, Trash2 } from "lucide-react";
 import LoadingSpinner from "@/components/LoadingSpinner";
 import EmptyState from "@/components/EmptyState";
 import { 

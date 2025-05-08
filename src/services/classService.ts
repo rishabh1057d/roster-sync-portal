@@ -103,86 +103,45 @@ export const deleteClass = async (classId: string) => {
   return true;
 };
 
-// Update students in a mathematics class to match our standard list
-export const updateMathematicsClassStudents = async () => {
+// Update students in a class by subject
+const updateSubjectClassStudents = async (subjectName: string) => {
   try {
     // Get all classes
     const { data: classes, error } = await supabase
       .from('classes')
       .select('*')
-      .eq('name', 'Mathematics 101');
+      .eq('name', subjectName);
 
     if (error) throw error;
     
     if (classes && classes.length > 0) {
-      const mathClass = classes[0];
-      console.log(`Found Mathematics class with ID: ${mathClass.id}`);
+      const targetClass = classes[0];
+      console.log(`Found ${subjectName} class with ID: ${targetClass.id}`);
       
       // Update students for this class
-      const updatedStudents = await updateClassStudents(mathClass.id);
+      const updatedStudents = await updateClassStudents(targetClass.id);
       return updatedStudents || [];
     } else {
-      console.error("Mathematics class not found");
+      console.error(`${subjectName} class not found`);
       return [];
     }
   } catch (error) {
-    console.error("Error updating Mathematics class students:", error);
+    console.error(`Error updating ${subjectName} class students:`, error);
     throw error;
   }
+};
+
+// Update students in a mathematics class to match our standard list
+export const updateMathematicsClassStudents = async () => {
+  return updateSubjectClassStudents('Mathematics 101');
 };
 
 // Update students in a physics class to match our standard list
 export const updatePhysicsClassStudents = async () => {
-  try {
-    // Get all classes
-    const { data: classes, error } = await supabase
-      .from('classes')
-      .select('*')
-      .eq('name', 'Physics 201');
-
-    if (error) throw error;
-    
-    if (classes && classes.length > 0) {
-      const physicsClass = classes[0];
-      console.log(`Found Physics class with ID: ${physicsClass.id}`);
-      
-      // Update students for this class
-      const updatedStudents = await updateClassStudents(physicsClass.id);
-      return updatedStudents || [];
-    } else {
-      console.error("Physics class not found");
-      return [];
-    }
-  } catch (error) {
-    console.error("Error updating Physics class students:", error);
-    throw error;
-  }
+  return updateSubjectClassStudents('Physics 201');
 };
 
 // Update students in a computer science class to match our standard list
 export const updateComputerScienceClassStudents = async () => {
-  try {
-    // Get all classes
-    const { data: classes, error } = await supabase
-      .from('classes')
-      .select('*')
-      .eq('name', 'Computer Science 301');
-
-    if (error) throw error;
-    
-    if (classes && classes.length > 0) {
-      const csClass = classes[0];
-      console.log(`Found Computer Science class with ID: ${csClass.id}`);
-      
-      // Update students for this class
-      const updatedStudents = await updateClassStudents(csClass.id);
-      return updatedStudents || [];
-    } else {
-      console.error("Computer Science class not found");
-      return [];
-    }
-  } catch (error) {
-    console.error("Error updating Computer Science class students:", error);
-    throw error;
-  }
+  return updateSubjectClassStudents('Computer Science 301');
 };
